@@ -8,7 +8,7 @@ const ORIGIN = Vector2(84, 236)
 const CELL = Vector2(66, 46)
 const PANTRY = Vector2i(10, 3)
 const ROCKS = [Vector2i(3, 1), Vector2i(3, 2), Vector2i(3, 4), Vector2i(3, 5), Vector2i(8, 0), Vector2i(8, 6)]
-const DIRECTIONS = [Vector2i.RIGHT, Vector2i.DOWN, Vector2i.UP, Vector2i.LEFT]
+const DIRECTIONS = [Vector2i.RIGHT, Vector2i.DOWN, Vector2i.UP, Vector2i.LEFT, Vector2i(1, 1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(-1, -1)]
 const INK = Color("eee3c9")
 const GOLD = Color("efbd66")
 const GREEN = Color("85d7b0")
@@ -165,7 +165,23 @@ func unit_at(cell: Vector2i) -> int:
 	return -1
 
 func distance(a: Vector2i, b: Vector2i) -> int:
-	return absi(a.x - b.x) + absi(a.y - b.y)
+	return maxi(absi(a.x - b.x), absi(a.y - b.y))
+
+func can_step(start: Vector2i, goal: Vector2i) -> bool:
+	if not valid_cell(goal) or distance(start, goal) != 1:
+		return false
+	var delta = goal - start
+	# Diagonal squares cost one movement, but cannot cross a stone corner.
+	if delta.x != 0 and delta.y != 0:
+		return valid_cell(start + Vector2i(delta.x, 0)) and valid_cell(start + Vector2i(0, delta.y))
+	return true
+
+func can_rig(cell: Vector2i) -> bool:
+	if not valid_cell(cell) or distance(units[1].cell, cell) > 2:
+		return false
+	var occupant = unit_at(cell)
+	# Resetting our spent pit is allowed under an invader; new placement needs space.
+	return occupant < 0 or (occupant >= 3 and cell == trap_cell and trap_state == "triggered")
 
 func path_to(start: Vector2i, goal: Vector2i) -> Array:
 	if not valid_cell(goal) or (unit_at(goal) >= 0 and goal != start):
@@ -178,7 +194,7 @@ func path_to(start: Vector2i, goal: Vector2i) -> Array:
 			break
 		for direction in DIRECTIONS:
 			var cell: Vector2i = current + direction
-			if valid_cell(cell) and unit_at(cell) < 0 and not previous.has(cell):
+			if can_step(current, cell) and unit_at(cell) < 0 and not previous.has(cell):
 				previous[cell] = current
 				frontier.append(cell)
 	if not previous.has(goal):
@@ -280,7 +296,7 @@ func click_cell(cell: Vector2i) -> void:
 			if occupant >= 3 and distance(actor.cell, cell) <= actor.range and can_see(actor.cell, cell):
 				pending = {"kind": "stone" if mode == "ability" else "attack", "target": occupant}
 		elif mode == "ability" and selected == 1 and rig_available:
-			if valid_cell(cell) and occupant < 0 and distance(actor.cell, cell) <= 2:
+			if can_rig(cell):
 				pending = {"kind": "rig", "cell": cell}
 		elif mode == "ability" and selected == 0:
 			if occupant >= 3 and distance(actor.cell, cell) <= 6 and can_see(actor.cell, cell):
@@ -289,7 +305,10 @@ func click_cell(cell: Vector2i) -> void:
 				pending = {"kind": "whistle", "target": lure_target, "cell": cell}
 	refresh()
 	if pending.is_empty() and lure_target < 0:
-		preview_label.text = "That action is unavailable. Check movement, range, sight, occupied cells, and the selected kobold's action."
+		if mode == "ability" and selected == 1:
+			preview_label.text = "Quick Rig is spent for this raid." if not rig_available else ("Mumpf has already used his action this round." if not actor.action else "Quick Rig needs a free tile or the existing spent pit within 2 squares, including diagonals.")
+		else:
+			preview_label.text = "That action is unavailable. Check movement, range, sight, occupied cells, and the selected kobold's action."
 
 func confirm_action() -> void:
 	if busy or pending.is_empty() or phase in ["won", "lost"]:
@@ -308,6 +327,8 @@ func confirm_action() -> void:
 				actor.action = false
 				rig_available = false
 			add_log("%s rigs the pit at %s. Dexterity save DC 13; fail: 2d6 damage and lost movement; pass: safe crossing." % [actor.name if phase != "preparation" else "The crew", tile_name(trap_cell)])
+			if unit_at(trap_cell) >= 3:
+				add_log("The pit is rearmed beneath the invader. It triggers on the next entry; rearming deals no damage.")
 		"move":
 			actor.move -= action.route.size()
 			actor.cell = action.cell
@@ -517,7 +538,7 @@ func refresh() -> void:
 	var phase_title = {"preparation": "PREPARE YOUR DEFENSE", "kobolds": "YOUR CREW'S TURN", "adventurers": "ADVENTURERS' TURN", "won": "THE WARREN HOLDS!", "lost": "THE WARREN FALLS"}
 	status_label.text = "%s\nRound %d · Pantry %d/3" % [phase_title[phase], round_number, pantry_hp]
 	crew_label.text = "%s · HP %d/%d · AC %d\nMove %d/%d · Action %s\nAttack +%d · Range %d" % [actor.name, actor.hp, actor.max_hp, actor.ac, actor.move, actor.speed, "ready" if actor.action else "spent", actor.bonus, actor.range]
-	var abilities = ["Whistle: select a visible enemy within 6, then a visible lure tile within 6. It follows before attacking.", "Quick Rig: place or reset the one pit within 2 tiles. One use during the raid; Dexterity save DC 13.", "Stone Shot: ranged attack within 4; on hit push one tile away. Push an invader onto the pit!"]
+	var abilities = ["Whistle: select a visible enemy within 6, then a visible lure tile within 6. It follows before attacking.", "Quick Rig: place or reset the one pit within 2 squares. Reset a spent pit even under an invader; triggers on next entry. One use during the raid.", "Stone Shot: ranged attack within 4; on hit push one tile away. Push an invader onto the pit!"]
 	help_label.text = "PREPARATION\nPlace pit, click a free tile, Confirm. Select a kobold and position it on the right. Then Start raid." if phase == "preparation" else abilities[selected] + "\nOne action per round. A normal attack also uses it."
 	intent_label.text = "ENEMY INTENT\n" + enemy_intent(3) + "\n" + enemy_intent(4)
 	for i in range(3):
@@ -537,12 +558,12 @@ func refresh() -> void:
 			"attack", "stone": preview_label.text = attack_preview(actor, units[pending.target], pending.kind == "stone")
 			"move": preview_label.text = "%s → %s: %d movement, %d remains. Blue route avoids stone and occupied cells. Confirm to move." % [actor.name, tile_name(pending.cell), pending.route.size(), actor.move - pending.route.size()]
 			"deploy": preview_label.text = "Position %s at %s before the raid. Confirm to place." % [actor.name, tile_name(pending.cell)]
-			"rig": preview_label.text = "Pit at %s · DEX save DC 13. Fail: 2d6 damage, stop, spend next turn climbing. Pass: cross safely.\nOne invader triggers it. Kobolds cross safely; Mumpf can reset it once during the raid." % tile_name(pending.cell)
+			"rig": preview_label.text = "Pit at %s · DEX save DC 13. Fail: 2d6 damage, stop, spend next turn climbing. Pass: cross safely.\nOne invader triggers it. Kobolds cross safely. Resetting beneath an invader deals no damage; the next entry triggers it. One reset during the raid." % tile_name(pending.cell)
 			"whistle": preview_label.text = "Lure %s toward %s on its next turn. Whistle uses Piks's action; no roll. Confirm to whistle." % [units[pending.target].name, tile_name(pending.cell)]
 	elif lure_target >= 0:
 		preview_label.text = "%s selected for Whistle. Now click a free lure tile within 6 of Piks; choose the pit or a tile beyond it." % units[lure_target].name
 	else:
-		preview_label.text = "Select an action, then click a highlighted tile or an enemy to preview. Confirm commits the action.\n" + ("Place your pit before starting. You may reposition freely on the right." if phase == "preparation" else "Green = movement · Red diamond = invader · Gold circle = selected kobold.")
+		preview_label.text = "Select an action, then click a highlighted tile or an enemy to preview. Confirm commits the action.\n" + ("Place your pit before starting. You may reposition freely on the right." if phase == "preparation" else "Diagonals cost 1 movement; adjacent diagonals are in melee range. Stone corners block movement.\nGreen = movement · Red diamond = invader · Gold circle = selected kobold.")
 	queue_redraw()
 
 func draw_sprite(key: String, ground: Vector2, height: float, flip: bool = false) -> void:
@@ -584,7 +605,7 @@ func _draw() -> void:
 					if not route.is_empty() and route.size() <= actor.move:
 						tint = Color(0.27, 0.72, 0.51, 0.27)
 				elif phase == "kobolds" and mode == "ability" and actor.action:
-					if selected == 1 and rig_available and unit_at(cell) < 0 and distance(actor.cell, cell) <= 2:
+					if selected == 1 and rig_available and can_rig(cell):
 						tint = Color(0.94, 0.69, 0.28, 0.3)
 					elif selected == 0 and lure_target >= 0 and unit_at(cell) < 0 and distance(actor.cell, cell) <= 6 and can_see(actor.cell, cell):
 						tint = Color(0.94, 0.69, 0.28, 0.3)

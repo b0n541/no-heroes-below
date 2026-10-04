@@ -24,7 +24,7 @@ Alternatively run `godot --path .` from the repository root. On the current mach
 | Start raid / end crew turn | Button or Space |
 | Reset encounter | Restart button or R |
 
-Click ground cells rather than the tops of character sprites. Preparation permits free deployment on the right side of the cave. Every combat round gives each surviving kobold its movement allowance and one action; moving and acting may occur in either order. Stone blocks movement and sight. Green tiles preview movement; a blue route shows its cost. Gold circles mark the selected kobold; red diamonds mark invaders.
+Click ground cells rather than the tops of character sprites. Preparation permits free deployment on the right side of the cave. Every combat round gives each surviving kobold its movement allowance and one action; moving and acting may occur in either order. Movement and range count diagonal squares the same as orthogonal squares: one square costs one movement point, and a diagonally adjacent enemy is within melee range. This applies to both kobolds and adventurers. Movement cannot cross a stone corner or end on an occupied tile. Stone blocks movement and sight. Green tiles preview movement; a blue route shows its cost. Gold circles mark the selected kobold; red diamonds mark invaders.
 
 ## A first plan to try
 
@@ -36,7 +36,7 @@ Click ground cells rather than the tops of character sprites. Preparation permit
 
 Piks's **Whistle** targets a visible adventurer within six tiles and a visible lure tile within six of Piks. It redirects the next enemy turn and uses Piks's action without a roll. If a lure route is occupied, the enemy approaches a free adjacent tile.
 
-Mumpf's **Quick Rig** places or resets the encounter's one pit within two tiles, once during combat. It consumes his action. The pit is spent after one invader crosses it; kobolds cross safely.
+Mumpf's **Quick Rig** places or resets the encounter's one pit within two squares, including diagonals, once during combat. It consumes his action. A new pit location must be unoccupied, but the existing spent pit can be rearmed while an adventurer remains on it. Rearming causes no immediate damage or saving throw and preserves any climbing penalty; the trap triggers when an invader next enters its tile. The pit is spent after one invader crosses it; kobolds cross safely.
 
 Krix's **Stone Shot** is an attack within four tiles. A hit pushes the target one tile away along the dominant axis; the preview identifies that tile or a blocked push. Place Krix on the far side of an invader to push it onto the armed pit. The push occurs only if the target survives the attack damage.
 
@@ -70,8 +70,13 @@ Checked with Godot MCP on Godot 4.7.2:
 - A successful pit save consumes the pit without damage or movement restriction.
 - A lethal confirmed attack produces victory. An actual enemy pantry activation produces defeat, and a crew knockout produces defeat. Restart restores preparation, HP, supplies, movement, actions, and pit availability.
 - Complete legal-action playthroughs: a direct rush with seed 3 lost in round 4; a prepared trap defense with seed 9 won in round 6 with 3/3 supplies. These establish reachable outcomes, not a balance verdict.
+- First-feedback checks: all 12 targeted runtime checks pass for diagonal movement, melee/ranged range, enemy melee, blocked stone corners and occupied destinations, occupied-pit rearming, and action/use limits. Actual mouse clicks and Confirm also move diagonally and reset an occupied pit; rearming preserves the invader's climbing turn and triggers only on re-entry. The live script was reloaded with the user's encounter state preserved.
 - Resized windows keep the interface's proportions. Character transparency, ground pivots, cave art, both pit states, previews, and the log were visually inspected in the live scene.
 - The existing `scripts/mcp_interaction_server.gd` autoload is preserved. Its project reference uses an explicit path so it also works before UID caches are built. The interaction server's existing shadowing/enum warnings remain; the prototype produces no script/runtime errors in completed checks.
+
+## First playtest feedback
+
+The user found trap placement satisfactory and attacks and saving throws understandable. Balance may need adjustment, but tuning is deferred. Two interaction issues were reported: the spent pit could not be rearmed while an adventurer occupied it, and diagonal movement and attacks were unavailable. The prototype now allows rearming that existing occupied pit and uses one-square diagonals for movement and range, while preventing movement across stone corners. These adjustments await the user's next playtest; they do not constitute a final verdict on the encounter.
 
 ## Playtest feedback still needed
 

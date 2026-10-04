@@ -16,6 +16,7 @@ The prototype adapts the basic resolution rules below without copying SRD prose 
 | --- | --- | --- |
 | `scripts/prototypes/waking_in_the_warren.gd`: attack resolution and combat log | [SRD 5.2.1](https://media.dndbeyond.com/compendium-images/srd/5.2/SRD_CC_v5.2.1.pdf), Playing the Game → D20 Tests / Attack Rolls / Rolling 20 or 1, pp. 6–7; Damage and Healing → Critical Hits, p. 16 | Adapted into original code and concise UI wording. Fixed encounter bonuses and 1d6 damage; natural 1 misses, natural 20 hits and doubles damage dice while leaving the flat bonus unchanged. No Advantage, Disadvantage, weapon tables, or monster stat blocks in this prototype. |
 | `scripts/prototypes/waking_in_the_warren.gd`: pit saving throw | SRD 5.2.1, Playing the Game → D20 Tests / Saving Throws, pp. 6–7 | Adapted into a Dexterity roll against DC 13. The one-use pit, 2d6 damage on failure, safe crossing on success, and turn spent climbing are original encounter choices. |
+| `scripts/prototypes/waking_in_the_warren.gd`: grid movement and range | SRD 5.2.1, Playing the Game → Playing on a Grid, p. 13 | Adapted into eight-direction pathfinding and square-based range. Orthogonal and diagonal steps each cost one movement point; diagonal movement cannot cross a stone corner. Range counts the greater axis distance, with the prototype's separate line-of-sight check. Occupied destination tiles remain blocked; allied-space traversal, Difficult Terrain, and optional alternating diagonal costs are not implemented. |
 
 ## Game releases
 
