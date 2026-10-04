@@ -559,11 +559,6 @@ func enemy_intent(index: int) -> String:
 		return "%s: attack %s (+%d vs AC %d)" % [enemy.name, units[target].name, enemy.bonus, units[target].ac]
 	return "%s: advance to pantry; attack if in range" % enemy.name
 
-func incoming_target(index: int) -> int:
-	if not alive(index) or units[index].stuck or units[index].lure.x >= 0:
-		return -1
-	return enemy_target(index)
-
 func refresh() -> void:
 	var actor: Dictionary = units[selected]
 	var phase_title = {"preparation": "PREPARE YOUR DEFENSE", "kobolds": "YOUR CREW'S TURN", "adventurers": "ADVENTURERS' TURN", "won": "THE WARREN HOLDS!", "lost": "THE WARREN FALLS"}
@@ -594,7 +589,7 @@ func refresh() -> void:
 	elif lure_target >= 0:
 		preview_label.text = "%s selected for Whistle · WHISTLE · 6. Now click a highlighted lure tile within 6 of Piks; choose the pit or a tile beyond it." % units[lure_target].name
 	else:
-		preview_label.text = "Select an action, then click a highlighted tile or an enemy to preview. Confirm commits the action.\n" + ("Place your pit before starting. You may reposition freely on the right." if phase == "preparation" else "%s · %s\nRed = legal target · Gold = selected target · Red arrow = incoming attacker → target." % [mode.capitalize(), action_reach(selected)])
+		preview_label.text = "Select an action, then click a highlighted tile or an enemy to preview. Confirm commits the action.\n" + ("Place your pit before starting. You may reposition freely on the right." if phase == "preparation" else "%s · %s\nRed = legal target · Gold = selected target. Enemy intent lists attackers and targets." % [mode.capitalize(), action_reach(selected)])
 	queue_redraw()
 
 func draw_sprite(key: String, ground: Vector2, height: float, flip: bool = false) -> void:
@@ -619,18 +614,6 @@ func _draw() -> void:
 		return
 	draw_texture_rect(textures["cave-background"], Rect2(25, 190, 828, 415), false, Color("c2c9c4"))
 	var actor: Dictionary = units[selected]
-	# Show each enemy's current attack target before drawing units, so the line
-	# reads as intent without obscuring the combatants.
-	for enemy_index in [3, 4]:
-		var target_index = incoming_target(enemy_index)
-		if target_index >= 0:
-			var start = cell_center(units[enemy_index].cell)
-			var finish = cell_center(units[target_index].cell)
-			draw_line(start, finish, Color(0.95, 0.35, 0.29, 0.82), 3)
-			var direction = (finish - start).normalized()
-			var base = finish - direction * 14
-			draw_line(base, base - direction.rotated(0.65) * 12, RED, 3)
-			draw_line(base, base - direction.rotated(-0.65) * 12, RED, 3)
 	for y in range(ROWS):
 		for x in range(COLS):
 			var cell = Vector2i(x, y)
