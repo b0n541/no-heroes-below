@@ -167,6 +167,26 @@ func unit_at(cell: Vector2i) -> int:
 func distance(a: Vector2i, b: Vector2i) -> int:
 	return maxi(absi(a.x - b.x), absi(a.y - b.y))
 
+func action_reach(index: int, action: String = "") -> String:
+	if action == "":
+		action = mode
+	if action == "attack":
+		return ("MELEE" if units[index].range == 1 else "RANGED") + " · %d" % units[index].range
+	if action == "ability":
+		if index == 0:
+			return "WHISTLE · 6"
+		if index == 1:
+			return "QUICK RIG · 2"
+		return "STONE SHOT · RANGED · %d" % units[index].range
+	return ("MELEE" if units[index].range == 1 else "RANGED") + " · %d" % units[index].range
+
+func legal_enemy_target(actor_index: int, target_index: int, attack_range: int) -> bool:
+	return target_index >= 0 and target_index < units.size() and alive(target_index) and not units[target_index].ally and distance(units[actor_index].cell, units[target_index].cell) <= attack_range and can_see(units[actor_index].cell, units[target_index].cell)
+
+func valid_whistle_tile(cell: Vector2i) -> bool:
+	var occupant = unit_at(cell)
+	return valid_cell(cell) and (occupant < 0 or cell == units[lure_target].cell) and distance(units[selected].cell, cell) <= 6 and can_see(units[selected].cell, cell)
+
 func can_step(start: Vector2i, goal: Vector2i) -> bool:
 	if not valid_cell(goal) or distance(start, goal) != 1:
 		return false
@@ -223,7 +243,10 @@ func attack_preview(attacker: Dictionary, target: Dictionary, stone: bool = fals
 	if stone:
 		var destination = push_destination(attacker, target)
 		extra = " Push to %s." % tile_name(destination) if valid_cell(destination) and unit_at(destination) < 0 else " Push blocked by stone, edge, or a unit."
-	return "%s → %s · d20 +%d vs AC %d · range %d/%d · sight clear · normal roll.\nHit: 1d6+%d damage.%s Natural 1 misses; natural 20 rolls 2d6." % [attacker.name, target.name, attacker.bonus, target.ac, distance(attacker.cell, target.cell), attacker.range, 2 if not attacker.ally else 1, extra]
+	var attack_kind = "MELEE" if attacker.range == 1 else "RANGED"
+	if stone:
+		attack_kind = "STONE SHOT · RANGED"
+	return "%s → %s · %s · d20 +%d vs AC %d · range %d/%d · sight clear · normal roll.\nHit: 1d6+%d damage.%s Natural 1 misses; natural 20 rolls 2d6." % [attacker.name, target.name, attack_kind, attacker.bonus, target.ac, distance(attacker.cell, target.cell), attacker.range, 2 if not attacker.ally else 1, extra]
 
 func tile_name(cell: Vector2i) -> String:
 	return "%s%d" % [char(65 + cell.x), cell.y + 1]
@@ -291,15 +314,15 @@ func click_cell(cell: Vector2i) -> void:
 			pending = {"kind": "move", "cell": cell, "route": route}
 	elif actor.action:
 		if mode == "attack" or (mode == "ability" and selected == 2):
-			if occupant >= 3 and distance(actor.cell, cell) <= actor.range and can_see(actor.cell, cell):
+			if occupant >= 3 and legal_enemy_target(selected, occupant, actor.range):
 				pending = {"kind": "stone" if mode == "ability" else "attack", "target": occupant}
 		elif mode == "ability" and selected == 1 and rig_available:
 			if can_rig(cell):
 				pending = {"kind": "rig", "cell": cell}
 		elif mode == "ability" and selected == 0:
-			if occupant >= 3 and distance(actor.cell, cell) <= 6 and can_see(actor.cell, cell):
+			if occupant >= 3 and legal_enemy_target(selected, occupant, 6):
 				lure_target = occupant
-			elif lure_target >= 3 and valid_cell(cell) and (occupant < 0 or cell == units[lure_target].cell) and distance(actor.cell, cell) <= 6 and can_see(actor.cell, cell):
+			elif lure_target >= 3 and valid_whistle_tile(cell):
 				pending = {"kind": "whistle", "target": lure_target, "cell": cell}
 	refresh()
 	if pending.is_empty() and lure_target < 0:
@@ -536,11 +559,16 @@ func enemy_intent(index: int) -> String:
 		return "%s: attack %s (+%d vs AC %d)" % [enemy.name, units[target].name, enemy.bonus, units[target].ac]
 	return "%s: advance to pantry; attack if in range" % enemy.name
 
+func incoming_target(index: int) -> int:
+	if not alive(index) or units[index].stuck or units[index].lure.x >= 0:
+		return -1
+	return enemy_target(index)
+
 func refresh() -> void:
 	var actor: Dictionary = units[selected]
 	var phase_title = {"preparation": "PREPARE YOUR DEFENSE", "kobolds": "YOUR CREW'S TURN", "adventurers": "ADVENTURERS' TURN", "won": "THE WARREN HOLDS!", "lost": "THE WARREN FALLS"}
 	status_label.text = "%s\nRound %d · Pantry %d/3" % [phase_title[phase], round_number, pantry_hp]
-	crew_label.text = "%s · HP %d/%d · AC %d\nMove %d/%d · Action %s\nAttack +%d · Range %d" % [actor.name, actor.hp, actor.max_hp, actor.ac, actor.move, actor.speed, "ready" if actor.action else "spent", actor.bonus, actor.range]
+	crew_label.text = "%s · HP %d/%d · AC %d\nMove %d/%d · Action %s\nAttack +%d · %s" % [actor.name, actor.hp, actor.max_hp, actor.ac, actor.move, actor.speed, "ready" if actor.action else "spent", actor.bonus, action_reach(selected, "attack")]
 	var abilities = ["Whistle: select a visible enemy within 6, then a visible lure tile within 6. It follows before attacking.", "Quick Rig: place or reset the one pit on an empty tile within 2 squares. Failed pit saves return invaders to their entry tile. One use during the raid.", "Stone Shot: ranged attack within 4; on hit push one tile away. Push an invader onto the pit!"]
 	help_label.text = "PREPARATION\nPlace pit, click a free tile, Confirm. Select a kobold and position it on the right. Then Start raid." if phase == "preparation" else abilities[selected] + "\nOne action per round. A normal attack also uses it."
 	intent_label.text = "ENEMY INTENT\n" + enemy_intent(3) + "\n" + enemy_intent(4)
@@ -564,9 +592,9 @@ func refresh() -> void:
 			"rig": preview_label.text = "Pit at %s · DEX save DC 13. Fail: 2d6 damage, return to entry tile, stop; skip next turn recovering. Pass: cross safely.\nOne invader triggers it. Kobolds cross safely; Mumpf can reset the empty pit once during the raid." % tile_name(pending.cell)
 			"whistle": preview_label.text = "Lure %s toward %s on its next turn. Whistle uses Piks's action; no roll. Confirm to whistle." % [units[pending.target].name, tile_name(pending.cell)]
 	elif lure_target >= 0:
-		preview_label.text = "%s selected for Whistle. Now click a free lure tile within 6 of Piks; choose the pit or a tile beyond it." % units[lure_target].name
+		preview_label.text = "%s selected for Whistle · WHISTLE · 6. Now click a highlighted lure tile within 6 of Piks; choose the pit or a tile beyond it." % units[lure_target].name
 	else:
-		preview_label.text = "Select an action, then click a highlighted tile or an enemy to preview. Confirm commits the action.\n" + ("Place your pit before starting. You may reposition freely on the right." if phase == "preparation" else "Diagonals cost 1 movement; adjacent diagonals are in melee range. Stone corners block movement.\nGreen = movement · Red diamond = invader · Gold circle = selected kobold.")
+		preview_label.text = "Select an action, then click a highlighted tile or an enemy to preview. Confirm commits the action.\n" + ("Place your pit before starting. You may reposition freely on the right." if phase == "preparation" else "%s · %s\nRed = legal target · Gold = selected target · Red arrow = incoming attacker → target." % [mode.capitalize(), action_reach(selected)])
 	queue_redraw()
 
 func draw_sprite(key: String, ground: Vector2, height: float, flip: bool = false) -> void:
@@ -591,6 +619,18 @@ func _draw() -> void:
 		return
 	draw_texture_rect(textures["cave-background"], Rect2(25, 190, 828, 415), false, Color("c2c9c4"))
 	var actor: Dictionary = units[selected]
+	# Show each enemy's current attack target before drawing units, so the line
+	# reads as intent without obscuring the combatants.
+	for enemy_index in [3, 4]:
+		var target_index = incoming_target(enemy_index)
+		if target_index >= 0:
+			var start = cell_center(units[enemy_index].cell)
+			var finish = cell_center(units[target_index].cell)
+			draw_line(start, finish, Color(0.95, 0.35, 0.29, 0.82), 3)
+			var direction = (finish - start).normalized()
+			var base = finish - direction * 14
+			draw_line(base, base - direction.rotated(0.65) * 12, RED, 3)
+			draw_line(base, base - direction.rotated(-0.65) * 12, RED, 3)
 	for y in range(ROWS):
 		for x in range(COLS):
 			var cell = Vector2i(x, y)
@@ -610,8 +650,14 @@ func _draw() -> void:
 				elif phase == "kobolds" and mode == "ability" and actor.action:
 					if selected == 1 and rig_available and can_rig(cell):
 						tint = Color(0.94, 0.69, 0.28, 0.3)
-					elif selected == 0 and lure_target >= 0 and unit_at(cell) < 0 and distance(actor.cell, cell) <= 6 and can_see(actor.cell, cell):
+					elif selected == 2 and mode == "ability" and legal_enemy_target(selected, unit_at(cell), actor.range):
+						tint = Color(0.95, 0.35, 0.29, 0.3)
+					elif selected == 0 and lure_target < 0 and unit_at(cell) >= 3 and legal_enemy_target(selected, unit_at(cell), 6):
+						tint = Color(0.95, 0.35, 0.29, 0.34)
+					elif selected == 0 and lure_target >= 0 and valid_whistle_tile(cell):
 						tint = Color(0.94, 0.69, 0.28, 0.3)
+				elif phase == "kobolds" and mode == "attack" and actor.action and legal_enemy_target(selected, unit_at(cell), actor.range):
+					tint = Color(0.95, 0.35, 0.29, 0.3)
 			draw_rect(rectangle.grow(-1), tint)
 			draw_rect(rectangle.grow(-1), Color(0.83, 0.78, 0.64, 0.25), false, 1)
 			if cell in ROCKS:
