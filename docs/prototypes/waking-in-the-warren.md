@@ -77,11 +77,11 @@ Checked with Godot MCP on Godot 4.7.2:
 
 ## First playtest feedback
 
-The user found trap placement satisfactory and attacks and saving throws understandable. Balance may need adjustment, but tuning is deferred. Two interaction issues were reported: the spent pit could not be rearmed while an adventurer occupied it, and diagonal movement and attacks were unavailable. The prototype uses one-square diagonals for movement and range, while preventing movement across stone corners. The user specified that a failed save should return the surviving invader to the adjacent tile it entered from. This leaves the pit vacant for rearming; Quick Rig requires an empty tile. These adjustments await the user's next playtest; they do not constitute a final verdict on the encounter.
+The user found trap placement satisfactory and attacks and saving throws understandable. Balance may need adjustment, but tuning is deferred. Two interaction issues were reported: the spent pit could not be rearmed while an adventurer occupied it, and diagonal movement and attacks were unavailable. The prototype uses one-square diagonals for movement and range, while preventing movement across stone corners. The user specified that a failed save should return the surviving invader to the adjacent tile it entered from. This leaves the pit vacant for rearming; Quick Rig requires an empty tile. After the revisions, the user confirmed: "o.k., all issues have been addressed". The playable proof of concept is accepted; balance tuning remains deferred. The canonical resolution is recorded on [Evaluate a playable Waking in the Warren defense](https://github.com/b0n541/no-heroes-below/issues/3).
 
-## Playtest feedback still needed
+## Deferred playtesting
 
-Can you tell what each kobold can do, why an attack hit or missed, and why a pit save passed or failed? Does setting up the trap feel worthwhile compared with rushing the adventurers? Does the pantry feel like your home to defend? Report any confusing click, unreadable preview, frustrating roll, or pacing issue before this decision ticket is resolved.
+Further balance tuning and broader playtesting can follow in a later effort. They are not blockers for the accepted first-encounter proof of concept.
 
 ## Limits and source notes
 
