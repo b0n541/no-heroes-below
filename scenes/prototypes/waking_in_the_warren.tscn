@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/prototypes/waking_in_the_warren.gd" id="1_acqi8"]
+
+[node name="root" type="Node2D" unique_id=375348317]
+script = ExtResource("1_acqi8")
