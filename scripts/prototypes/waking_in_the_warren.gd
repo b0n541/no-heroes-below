@@ -1,6 +1,7 @@
 extends Node2D
 ## Throwaway encounter prototype for the first live playtest.
 ## In-memory state, one central RNG, deliberately small and easy to revise.
+## Three combat-feedback treatments are switchable from the bar under the cave.
 
 const COLS = 11
 const ROWS = 7
@@ -29,6 +30,8 @@ var trap_state = "unplaced"
 var rig_available = true
 var busy = false
 var hovered = Vector2i(-1, -1)
+var feedback_style = 0
+var feedback_preview = true
 var log_lines: Array[String] = []
 var textures: Dictionary = {}
 var manifest: Dictionary = {}
@@ -43,7 +46,10 @@ var confirm_button: Button
 var next_button: Button
 var action_buttons: Dictionary = {}
 var crew_buttons: Array[Button] = []
+var feedback_buttons: Array[Button] = []
 var font: Font
+
+const FEEDBACK_STYLE_NAMES = ["ATTACK LINES", "RANGE MAP", "ATTACK CARDS"]
 
 func _ready() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -89,7 +95,7 @@ func make_button(title: String, at: Vector2, dimensions: Vector2, callback: Call
 
 func build_ui() -> void:
 	make_label(Vector2(30, 16), Vector2(790, 44), 30, GOLD).text = "WAKING IN THE WARREN"
-	make_label(Vector2(31, 61), Vector2(800, 35), 16).text = "Can three fragile kobolds save their home with a whistle, a pit, and a sling?"
+	make_label(Vector2(31, 61), Vector2(800, 35), 16).text = "VISUAL COMPARISON · Switch combat-feedback treatments below."
 	status_label = make_label(Vector2(880, 24), Vector2(365, 74), 21, GOLD)
 	make_label(Vector2(31, 111), Vector2(800, 42), 17).text = "Defend the pantry. Defeat both invaders before they steal all 3 supplies."
 	make_label(Vector2(38, 159), Vector2(400, 25), 14, BLUE).text = "ENTRANCE →     Stone blocks movement and sight."
@@ -108,7 +114,11 @@ func build_ui() -> void:
 	log_label.add_theme_font_size_override("normal_font_size", 15)
 	log_label.scroll_following = true
 	add_child(log_label)
-	preview_label = make_label(Vector2(38, 626), Vector2(800, 78), 17, BLUE)
+	preview_label = make_label(Vector2(38, 626), Vector2(800, 49), 16, BLUE)
+	for i in range(FEEDBACK_STYLE_NAMES.size()):
+		var index = i
+		var button = make_button("%d · %s" % [i + 1, FEEDBACK_STYLE_NAMES[i]], Vector2(30 + i * 270, 675), Vector2(262, 32), func(): set_feedback_style(index))
+		feedback_buttons.append(button)
 	var actions = [["move", "Move [M]"], ["attack", "Attack [A]"], ["ability", "Ability [S]"], ["trap", "Place pit [T]"]]
 	for i in range(actions.size()):
 		var action: String = actions[i][0]
@@ -142,7 +152,18 @@ func restart() -> void:
 	rig_available = true
 	log_lines.clear()
 	die_label.text = "d20 · —"
-	add_log("The adventurers are coming. Place the pit, then position your crew on the right side of the cave.")
+	if feedback_preview:
+		phase = "kobolds"
+		units[0].cell = Vector2i(8, 4)
+		units[1].cell = Vector2i(6, 3)
+		units[2].cell = Vector2i(5, 1)
+		units[3].cell = Vector2i(5, 3)
+		units[4].cell = Vector2i(3, 0)
+		selected = 1
+		mode = "attack"
+		add_log("Visual comparison: staged positions expose Fighter → Mumpf and Ranger → Krix. Restart restores this preview state.")
+	else:
+		add_log("The adventurers are coming. Place the pit, then position your crew on the right side of the cave.")
 	refresh()
 
 func add_log(line: String) -> void:
@@ -223,7 +244,7 @@ func attack_preview(attacker: Dictionary, target: Dictionary, stone: bool = fals
 	if stone:
 		var destination = push_destination(attacker, target)
 		extra = " Push to %s." % tile_name(destination) if valid_cell(destination) and unit_at(destination) < 0 else " Push blocked by stone, edge, or a unit."
-	return "%s → %s · d20 +%d vs AC %d · range %d/%d · sight clear · normal roll.\nHit: 1d6+%d damage.%s Natural 1 misses; natural 20 rolls 2d6." % [attacker.name, target.name, attacker.bonus, target.ac, distance(attacker.cell, target.cell), attacker.range, 2 if not attacker.ally else 1, extra]
+	return "%s → %s · %s · d20 +%d vs AC %d · reach %d/%d · sight clear.\nHit: 1d6+%d damage.%s Natural 1 misses; natural 20 rolls 2d6." % [attacker.name, target.name, attack_kind(attacker.range), attacker.bonus, target.ac, distance(attacker.cell, target.cell), attacker.range, 2 if not attacker.ally else 1, extra]
 
 func tile_name(cell: Vector2i) -> String:
 	return "%s%d" % [char(65 + cell.x), cell.y + 1]
@@ -265,6 +286,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_ENTER: confirm_action()
 			KEY_SPACE: advance_turn()
 			KEY_R: restart()
+			KEY_F1: set_feedback_style(0)
+			KEY_F2: set_feedback_style(1)
+			KEY_F3: set_feedback_style(2)
 			KEY_ESCAPE:
 				pending.clear()
 				lure_target = -1
@@ -533,17 +557,127 @@ func enemy_intent(index: int) -> String:
 		return "%s: follow whistle → %s" % [enemy.name, tile_name(enemy.lure)]
 	var target = enemy_target(index)
 	if target >= 0:
-		return "%s: attack %s (+%d vs AC %d)" % [enemy.name, units[target].name, enemy.bonus, units[target].ac]
+		return "%s: %s → %s (+%d vs AC %d)" % [enemy.name, attack_kind(enemy.range), units[target].name, enemy.bonus, units[target].ac]
 	return "%s: advance to pantry; attack if in range" % enemy.name
+
+func enemy_intent_card(index: int) -> String:
+	if not alive(index):
+		return units[index].name + " · defeated"
+	var enemy: Dictionary = units[index]
+	if enemy.stuck:
+		return "%s · Recover from pit climb" % enemy.name
+	if enemy.lure.x >= 0:
+		return "%s → whistle tile %s" % [enemy.name, tile_name(enemy.lure)]
+	var target = enemy_target(index)
+	if target >= 0:
+		return "%s → %s · %s\n+%d vs AC %d" % [enemy.name, units[target].name, attack_kind(enemy.range), enemy.bonus, units[target].ac]
+	return "%s · Advance to pantry" % enemy.name
+
+func attack_kind(attack_range: int) -> String:
+	return "MELEE · 1" if attack_range <= 1 else "RANGED · %d" % attack_range
+
+func set_feedback_style(style: int) -> void:
+	feedback_style = style
+	refresh()
+
+func feedback_target() -> int:
+	if pending.has("target"):
+		return pending.target
+	if lure_target >= 3:
+		return lure_target
+	if valid_cell(hovered):
+		var occupant = unit_at(hovered)
+		if occupant >= 3:
+			return occupant
+	return -1
+
+func feedback_range() -> int:
+	if mode == "attack":
+		return units[selected].range
+	if mode == "ability" and selected == 2:
+		return units[selected].range
+	if mode == "ability" and selected == 0:
+		return 6
+	return 0
+
+func feedback_candidates() -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	var actor: Dictionary = units[selected]
+	if phase != "kobolds" or not actor.action:
+		return cells
+	var reach = feedback_range()
+	if reach <= 0:
+		return cells
+	if mode == "ability" and selected == 0 and lure_target >= 3:
+		for y in range(ROWS):
+			for x in range(COLS):
+				var cell = Vector2i(x, y)
+				if valid_cell(cell) and (unit_at(cell) < 0 or cell == units[lure_target].cell) and distance(actor.cell, cell) <= reach and can_see(actor.cell, cell):
+					cells.append(cell)
+		return cells
+	for index in range(3, units.size()):
+		if alive(index) and distance(actor.cell, units[index].cell) <= reach and can_see(actor.cell, units[index].cell):
+			cells.append(units[index].cell)
+	return cells
+
+func draw_arrow(from_cell: Vector2i, to_cell: Vector2i, color: Color) -> void:
+	var start = cell_center(from_cell)
+	var finish = cell_center(to_cell)
+	var direction = (finish - start).normalized()
+	var tip = finish - direction * 30.0
+	var side = direction.rotated(PI / 2.0) * 7.0
+	draw_line(start, tip, color, 3.0, true)
+	draw_line(tip, tip - direction * 12.0 + side, color, 3.0, true)
+	draw_line(tip, tip - direction * 12.0 - side, color, 3.0, true)
+
+func draw_feedback() -> void:
+	if phase == "kobolds" and feedback_style == 1:
+		for cell in feedback_candidates():
+			var rect = Rect2(ORIGIN + Vector2(cell) * CELL, CELL).grow(-3)
+			var color = Color(0.33, 0.84, 0.68, 0.24) if mode == "attack" else Color(0.94, 0.74, 0.32, 0.24)
+			draw_rect(rect, color)
+			draw_rect(rect, Color("55d7ae") if mode == "attack" else GOLD, false, 2.0)
+		if mode == "ability" and selected == 0 and lure_target < 0:
+			var actor: Dictionary = units[selected]
+			for index in range(3, units.size()):
+				if alive(index) and distance(actor.cell, units[index].cell) <= 6 and can_see(actor.cell, units[index].cell):
+					draw_rect(Rect2(ORIGIN + Vector2(units[index].cell) * CELL, CELL).grow(-3), GOLD, false, 3.0)
+	elif feedback_style == 0:
+		for cell in feedback_candidates():
+			draw_arc(cell_center(cell), 27, 0, TAU, 28, Color("55d7ae") if mode == "attack" else GOLD, 3.0, true)
+		for index in range(3, units.size()):
+			if alive(index):
+				var intended_target = enemy_target(index)
+				if intended_target >= 0:
+					draw_arrow(units[index].cell, units[intended_target].cell, Color("efbd66"))
+		var aimed_target = feedback_target()
+		if aimed_target >= 3 and phase == "kobolds" and (mode == "attack" or mode == "ability"):
+			draw_arrow(units[selected].cell, units[aimed_target].cell, Color("55d7ae"))
+		elif phase == "kobolds" and mode == "ability" and selected == 0 and lure_target >= 3:
+			var destination = pending.get("cell", hovered)
+			if valid_cell(destination):
+				draw_arrow(units[selected].cell, destination, GOLD)
+	elif feedback_style == 2:
+		for cell in feedback_candidates():
+			draw_arc(cell_center(cell), 27, 0, TAU, 28, Color("efbd66"), 3.0, true)
+		for index in range(3, units.size()):
+			if not alive(index):
+				continue
+			var intended_target = enemy_target(index)
+			if intended_target >= 0:
+				draw_arc(cell_center(units[intended_target].cell), 34, 0, TAU, 32, RED, 4.0, true)
 
 func refresh() -> void:
 	var actor: Dictionary = units[selected]
 	var phase_title = {"preparation": "PREPARE YOUR DEFENSE", "kobolds": "YOUR CREW'S TURN", "adventurers": "ADVENTURERS' TURN", "won": "THE WARREN HOLDS!", "lost": "THE WARREN FALLS"}
 	status_label.text = "%s\nRound %d · Pantry %d/3" % [phase_title[phase], round_number, pantry_hp]
-	crew_label.text = "%s · HP %d/%d · AC %d\nMove %d/%d · Action %s\nAttack +%d · Range %d" % [actor.name, actor.hp, actor.max_hp, actor.ac, actor.move, actor.speed, "ready" if actor.action else "spent", actor.bonus, actor.range]
-	var abilities = ["Whistle: select a visible enemy within 6, then a visible lure tile within 6. It follows before attacking.", "Quick Rig: place or reset the one pit on an empty tile within 2 squares. Failed pit saves return invaders to their entry tile. One use during the raid.", "Stone Shot: ranged attack within 4; on hit push one tile away. Push an invader onto the pit!"]
+	crew_label.text = "%s · HP %d/%d · AC %d\nMove %d/%d · Action %s\nAttack +%d · %s" % [actor.name, actor.hp, actor.max_hp, actor.ac, actor.move, actor.speed, "ready" if actor.action else "spent", actor.bonus, attack_kind(actor.range)]
+	var abilities = ["Whistle · range 6. Choose a visible adventurer, then a visible lure tile.", "Quick Rig · range 2. Place or reset the empty pit once per raid.", "Stone Shot · RANGED · 4. A hit pushes the target one tile."]
 	help_label.text = "PREPARATION\nPlace pit, click a free tile, Confirm. Select a kobold and position it on the right. Then Start raid." if phase == "preparation" else abilities[selected] + "\nOne action per round. A normal attack also uses it."
-	intent_label.text = "ENEMY INTENT\n" + enemy_intent(3) + "\n" + enemy_intent(4)
+	var intent_heading = ["ATTACK LINES · NEXT TARGETS", "RANGE MAP · NEXT TARGETS", "ATTACK CARDS · NEXT ACTIONS"][feedback_style]
+	intent_label.text = intent_heading + "\n" + (enemy_intent_card(3) + "\n" + enemy_intent_card(4) if feedback_style == 2 else enemy_intent(3) + "\n" + enemy_intent(4))
+	for i in range(feedback_buttons.size()):
+		feedback_buttons[i].modulate = GOLD if feedback_style == i else Color.WHITE
 	for i in range(3):
 		crew_buttons[i].disabled = busy or not alive(i)
 		crew_buttons[i].text = ("● " if selected == i else "") + units[i].name + " %d" % units[i].hp
@@ -565,6 +699,12 @@ func refresh() -> void:
 			"whistle": preview_label.text = "Lure %s toward %s on its next turn. Whistle uses Piks's action; no roll. Confirm to whistle." % [units[pending.target].name, tile_name(pending.cell)]
 	elif lure_target >= 0:
 		preview_label.text = "%s selected for Whistle. Now click a free lure tile within 6 of Piks; choose the pit or a tile beyond it." % units[lure_target].name
+	elif phase == "kobolds" and mode == "attack":
+		preview_label.text = "%s · Choose a visible adventurer in range; preview the attack before confirming." % attack_kind(actor.range)
+	elif phase == "kobolds" and mode == "ability" and selected == 0:
+		preview_label.text = "WHISTLE · 6 · Select a visible adventurer, then a visible lure tile within 6."
+	elif phase == "kobolds" and mode == "ability" and selected == 2:
+		preview_label.text = "STONE SHOT · %s · Choose a visible adventurer in range; a hit pushes." % attack_kind(actor.range)
 	else:
 		preview_label.text = "Select an action, then click a highlighted tile or an enemy to preview. Confirm commits the action.\n" + ("Place your pit before starting. You may reposition freely on the right." if phase == "preparation" else "Diagonals cost 1 movement; adjacent diagonals are in melee range. Stone corners block movement.\nGreen = movement · Red diamond = invader · Gold circle = selected kobold.")
 	queue_redraw()
@@ -656,3 +796,4 @@ func _draw() -> void:
 		draw_rect(Rect2(ground + Vector2(-24, 1), Vector2(48, 5)), Color("402e2c"))
 		draw_rect(Rect2(ground + Vector2(-24, 1), Vector2(48.0 * unit.hp / unit.max_hp, 5)), GREEN if unit.ally else RED)
 		draw_string(font, ground + Vector2(-27, 20), "%s %d" % [unit.name, unit.hp], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, INK)
+	draw_feedback()
