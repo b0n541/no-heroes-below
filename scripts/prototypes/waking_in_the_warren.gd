@@ -179,9 +179,7 @@ func can_step(start: Vector2i, goal: Vector2i) -> bool:
 func can_rig(cell: Vector2i) -> bool:
 	if not valid_cell(cell) or distance(units[1].cell, cell) > 2:
 		return false
-	var occupant = unit_at(cell)
-	# Resetting our spent pit is allowed under an invader; new placement needs space.
-	return occupant < 0 or (occupant >= 3 and cell == trap_cell and trap_state == "triggered")
+	return unit_at(cell) < 0
 
 func path_to(start: Vector2i, goal: Vector2i) -> Array:
 	if not valid_cell(goal) or (unit_at(goal) >= 0 and goal != start):
@@ -306,7 +304,7 @@ func click_cell(cell: Vector2i) -> void:
 	refresh()
 	if pending.is_empty() and lure_target < 0:
 		if mode == "ability" and selected == 1:
-			preview_label.text = "Quick Rig is spent for this raid." if not rig_available else ("Mumpf has already used his action this round." if not actor.action else "Quick Rig needs a free tile or the existing spent pit within 2 squares, including diagonals.")
+			preview_label.text = "Quick Rig is spent for this raid." if not rig_available else ("Mumpf has already used his action this round." if not actor.action else "Quick Rig needs an empty tile within 2 squares, including diagonals.")
 		else:
 			preview_label.text = "That action is unavailable. Check movement, range, sight, occupied cells, and the selected kobold's action."
 
@@ -326,9 +324,7 @@ func confirm_action() -> void:
 			if phase != "preparation":
 				actor.action = false
 				rig_available = false
-			add_log("%s rigs the pit at %s. Dexterity save DC 13; fail: 2d6 damage and lost movement; pass: safe crossing." % [actor.name if phase != "preparation" else "The crew", tile_name(trap_cell)])
-			if unit_at(trap_cell) >= 3:
-				add_log("The pit is rearmed beneath the invader. It triggers on the next entry; rearming deals no damage.")
+			add_log("%s rigs the pit at %s. Dexterity save DC 13; fail: 2d6 damage, return to entry tile, and lost movement; pass: safe crossing." % [actor.name if phase != "preparation" else "The crew", tile_name(trap_cell)])
 		"move":
 			actor.move -= action.route.size()
 			actor.cell = action.cell
@@ -383,14 +379,15 @@ func resolve_attack(attacker_index: int, target_index: int, stone: bool = false)
 	elif stone:
 		var destination = push_destination(attacker, target)
 		if valid_cell(destination) and unit_at(destination) < 0:
+			var entry_cell: Vector2i = target.cell
 			target.cell = destination
 			add_log("Stone Shot pushes %s to %s." % [target.name, tile_name(destination)])
-			await trigger_pit(target_index)
+			await trigger_pit(target_index, entry_cell)
 		else:
 			add_log("Stone Shot's push is blocked; the hit still deals damage.")
 	queue_redraw()
 
-func trigger_pit(index: int) -> bool:
+func trigger_pit(index: int, entry_cell: Vector2i) -> bool:
 	if trap_state != "armed" or units[index].cell != trap_cell or units[index].ally:
 		return false
 	trap_state = "triggered"
@@ -403,8 +400,13 @@ func trigger_pit(index: int) -> bool:
 	var first = roll_die(6)
 	var second = roll_die(6)
 	target.hp = maxi(0, target.hp - first - second)
-	target.stuck = true
-	add_log("Pit: %s rolls d20 %d +%d DEX = %d vs DC 13. FAIL: %d+%d = %d damage; %d HP. Movement stops; next turn spent climbing." % [target.name, natural, target.dex, natural + target.dex, first, second, first + second, target.hp])
+	var exit_text = "Defeated in the pit."
+	if target.hp > 0:
+		target.cell = entry_cell
+		target.stuck = true
+		exit_text = "Returns to %s. Movement stops; next turn spent recovering from the climb." % tile_name(entry_cell)
+	add_log("Pit: %s rolls d20 %d +%d DEX = %d vs DC 13. FAIL: %d+%d = %d damage; %d HP. %s" % [target.name, natural, target.dex, natural + target.dex, first, second, first + second, target.hp, exit_text])
+	queue_redraw()
 	return true
 
 func advance_turn() -> void:
@@ -474,7 +476,7 @@ func enemy_turn(index: int) -> void:
 	if enemy.stuck:
 		enemy.stuck = false
 		enemy.lure = Vector2i(-1, -1)
-		add_log("%s spends this turn climbing out of the pit; no move or attack." % enemy.name)
+		add_log("%s spends this turn recovering after climbing out of the pit; no move or attack." % enemy.name)
 		return
 	var lured: bool = enemy.lure.x >= 0
 	var goal: Vector2i = enemy.lure if lured else PANTRY
@@ -489,10 +491,11 @@ func enemy_turn(index: int) -> void:
 		var next_cell = next_enemy_step(index, goal)
 		if next_cell == enemy.cell:
 			break
+		var entry_cell: Vector2i = enemy.cell
 		enemy.cell = next_cell
 		queue_redraw()
 		await get_tree().create_timer(0.16).timeout
-		if await trigger_pit(index):
+		if await trigger_pit(index, entry_cell):
 			enemy.lure = Vector2i(-1, -1)
 			return
 		if not lured and enemy_target(index) >= 0:
@@ -525,7 +528,7 @@ func enemy_intent(index: int) -> String:
 		return units[index].name + ": defeated"
 	var enemy: Dictionary = units[index]
 	if enemy.stuck:
-		return enemy.name + ": climb out; skip next turn"
+		return enemy.name + ": recover from pit climb; skip next turn"
 	if enemy.lure.x >= 0:
 		return "%s: follow whistle → %s" % [enemy.name, tile_name(enemy.lure)]
 	var target = enemy_target(index)
@@ -538,7 +541,7 @@ func refresh() -> void:
 	var phase_title = {"preparation": "PREPARE YOUR DEFENSE", "kobolds": "YOUR CREW'S TURN", "adventurers": "ADVENTURERS' TURN", "won": "THE WARREN HOLDS!", "lost": "THE WARREN FALLS"}
 	status_label.text = "%s\nRound %d · Pantry %d/3" % [phase_title[phase], round_number, pantry_hp]
 	crew_label.text = "%s · HP %d/%d · AC %d\nMove %d/%d · Action %s\nAttack +%d · Range %d" % [actor.name, actor.hp, actor.max_hp, actor.ac, actor.move, actor.speed, "ready" if actor.action else "spent", actor.bonus, actor.range]
-	var abilities = ["Whistle: select a visible enemy within 6, then a visible lure tile within 6. It follows before attacking.", "Quick Rig: place or reset the one pit within 2 squares. Reset a spent pit even under an invader; triggers on next entry. One use during the raid.", "Stone Shot: ranged attack within 4; on hit push one tile away. Push an invader onto the pit!"]
+	var abilities = ["Whistle: select a visible enemy within 6, then a visible lure tile within 6. It follows before attacking.", "Quick Rig: place or reset the one pit on an empty tile within 2 squares. Failed pit saves return invaders to their entry tile. One use during the raid.", "Stone Shot: ranged attack within 4; on hit push one tile away. Push an invader onto the pit!"]
 	help_label.text = "PREPARATION\nPlace pit, click a free tile, Confirm. Select a kobold and position it on the right. Then Start raid." if phase == "preparation" else abilities[selected] + "\nOne action per round. A normal attack also uses it."
 	intent_label.text = "ENEMY INTENT\n" + enemy_intent(3) + "\n" + enemy_intent(4)
 	for i in range(3):
@@ -558,7 +561,7 @@ func refresh() -> void:
 			"attack", "stone": preview_label.text = attack_preview(actor, units[pending.target], pending.kind == "stone")
 			"move": preview_label.text = "%s → %s: %d movement, %d remains. Blue route avoids stone and occupied cells. Confirm to move." % [actor.name, tile_name(pending.cell), pending.route.size(), actor.move - pending.route.size()]
 			"deploy": preview_label.text = "Position %s at %s before the raid. Confirm to place." % [actor.name, tile_name(pending.cell)]
-			"rig": preview_label.text = "Pit at %s · DEX save DC 13. Fail: 2d6 damage, stop, spend next turn climbing. Pass: cross safely.\nOne invader triggers it. Kobolds cross safely. Resetting beneath an invader deals no damage; the next entry triggers it. One reset during the raid." % tile_name(pending.cell)
+			"rig": preview_label.text = "Pit at %s · DEX save DC 13. Fail: 2d6 damage, return to entry tile, stop; skip next turn recovering. Pass: cross safely.\nOne invader triggers it. Kobolds cross safely; Mumpf can reset the empty pit once during the raid." % tile_name(pending.cell)
 			"whistle": preview_label.text = "Lure %s toward %s on its next turn. Whistle uses Piks's action; no roll. Confirm to whistle." % [units[pending.target].name, tile_name(pending.cell)]
 	elif lure_target >= 0:
 		preview_label.text = "%s selected for Whistle. Now click a free lure tile within 6 of Piks; choose the pit or a tile beyond it." % units[lure_target].name

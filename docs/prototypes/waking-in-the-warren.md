@@ -31,12 +31,12 @@ Click ground cells rather than the tops of character sprites. Preparation permit
 1. Place the pit at **E4** and confirm. Position Mumpf at **E5** and Krix at **F3**. Piks can stay at **F4**.
 2. Start the raid. Select Piks, choose Ability, click the fighter at **A4**, then **E4**, and confirm the Whistle. End the crew turn.
 3. The fighter should approach **D4**. Whistle it toward **E4** again. Krix can preview a shot at it before the crew turn ends.
-4. Watch the pit's Dexterity save and the combat log. A failed save stops movement and costs the invader its next turn; a successful save lets it cross safely. Rolls vary between runs.
+4. Watch the pit's Dexterity save and the combat log. A failed save returns the surviving invader to the adjacent tile it entered from, stops movement, and costs it its next turn; a successful save lets it cross safely. Rolls vary between runs.
 5. Concentrate attacks on the isolated fighter, then deal with the ranger. Movement is still available after attacking. The ranger takes the lower route around the stone and favors Krix as an attack target.
 
 Piks's **Whistle** targets a visible adventurer within six tiles and a visible lure tile within six of Piks. It redirects the next enemy turn and uses Piks's action without a roll. If a lure route is occupied, the enemy approaches a free adjacent tile.
 
-Mumpf's **Quick Rig** places or resets the encounter's one pit within two squares, including diagonals, once during combat. It consumes his action. A new pit location must be unoccupied, but the existing spent pit can be rearmed while an adventurer remains on it. Rearming causes no immediate damage or saving throw and preserves any climbing penalty; the trap triggers when an invader next enters its tile. The pit is spent after one invader crosses it; kobolds cross safely.
+Mumpf's **Quick Rig** places or resets the encounter's one pit within two squares, including diagonals, once during combat. It consumes his action. Placement and rearming require an empty tile. After a failed pit save, a surviving invader returns to its entry tile, leaving the pit clear to reset. Rearming causes no immediate damage or saving throw and preserves the recovery penalty; the trap triggers when an invader next enters its tile. The pit is spent after one invader crosses it; kobolds cross safely.
 
 Krix's **Stone Shot** is an attack within four tiles. A hit pushes the target one tile away along the dominant axis; the preview identifies that tile or a blocked push. Place Krix on the far side of an invader to push it onto the armed pit. The push occurs only if the target survives the attack damage.
 
@@ -52,7 +52,7 @@ Krix's **Stone Shot** is an attack within four tiles. A hit pushes the target on
 
 All attacks deal 1d6 plus a flat bonus: +1 for kobolds, +2 for invaders. An attack total equal to AC hits. Natural 1 always misses; natural 20 always hits and rolls two damage dice while keeping the flat bonus unchanged. The attack preview shows the bonus, target AC, range, line of sight, and expected hit effects. All rolls use one RandomNumberGenerator. A short die reveal and persistent scrollable log explain the outcomes.
 
-The pit requires a Dexterity saving throw against DC 13. The fighter has +1 and the ranger +3. Failure deals 2d6 damage, ends the invader's movement, and forces it to spend its next turn climbing without attacking. Success avoids damage and movement loss. Saving throws use their total against DC; they do not use the attack-only natural-1/20 rule.
+The pit requires a Dexterity saving throw against DC 13. The fighter has +1 and the ranger +3. Failure deals 2d6 damage. A surviving invader immediately returns to the adjacent tile it occupied just before entering the pit, including diagonal entry and Stone Shot pushes. Its remaining movement ends, and its next turn is spent recovering from the climb with no movement or attack. An invader defeated by the pit leaves the battlefield. Success avoids damage and movement loss. Saving throws use their total against DC; they do not use the attack-only natural-1/20 rule.
 
 The fighter attacks the lowest-HP kobold in reach. The ranger favors Krix, then Piks, then Mumpf when a target is in range and sight. Otherwise the invaders advance toward the pantry and attack when they find a target in range. A Whistle overrides movement priority for one activation. The sidebar exposes current enemy intentions.
 
@@ -70,13 +70,14 @@ Checked with Godot MCP on Godot 4.7.2:
 - A successful pit save consumes the pit without damage or movement restriction.
 - A lethal confirmed attack produces victory. An actual enemy pantry activation produces defeat, and a crew knockout produces defeat. Restart restores preparation, HP, supplies, movement, actions, and pit availability.
 - Complete legal-action playthroughs: a direct rush with seed 3 lost in round 4; a prepared trap defense with seed 9 won in round 6 with 3/3 supplies. These establish reachable outcomes, not a balance verdict.
-- First-feedback checks: all 12 targeted runtime checks pass for diagonal movement, melee/ranged range, enemy melee, blocked stone corners and occupied destinations, occupied-pit rearming, and action/use limits. Actual mouse clicks and Confirm also move diagonally and reset an occupied pit; rearming preserves the invader's climbing turn and triggers only on re-entry. The live script was reloaded with the user's encounter state preserved.
+- Diagonal runtime checks cover one-square movement, melee/ranged range, enemy melee, blocked stone corners, and occupied destinations. Actual mouse clicks and Confirm execute diagonal movement.
+- Return-tile checks: all six targeted runtime scenarios pass for multi-step walking (returns to the last adjacent tile, not the turn's starting tile), diagonal entry, a confirmed Stone Shot push, rearming and retriggering the vacant pit, successful saves, and lethal trap damage. A failed save leaves a surviving invader on its entry tile with the next-turn recovery penalty. The user's live encounter and die display were restored after checking.
 - Resized windows keep the interface's proportions. Character transparency, ground pivots, cave art, both pit states, previews, and the log were visually inspected in the live scene.
 - The existing `scripts/mcp_interaction_server.gd` autoload is preserved. Its project reference uses an explicit path so it also works before UID caches are built. The interaction server's existing shadowing/enum warnings remain; the prototype produces no script/runtime errors in completed checks.
 
 ## First playtest feedback
 
-The user found trap placement satisfactory and attacks and saving throws understandable. Balance may need adjustment, but tuning is deferred. Two interaction issues were reported: the spent pit could not be rearmed while an adventurer occupied it, and diagonal movement and attacks were unavailable. The prototype now allows rearming that existing occupied pit and uses one-square diagonals for movement and range, while preventing movement across stone corners. These adjustments await the user's next playtest; they do not constitute a final verdict on the encounter.
+The user found trap placement satisfactory and attacks and saving throws understandable. Balance may need adjustment, but tuning is deferred. Two interaction issues were reported: the spent pit could not be rearmed while an adventurer occupied it, and diagonal movement and attacks were unavailable. The prototype uses one-square diagonals for movement and range, while preventing movement across stone corners. The user specified that a failed save should return the surviving invader to the adjacent tile it entered from. This leaves the pit vacant for rearming; Quick Rig requires an empty tile. These adjustments await the user's next playtest; they do not constitute a final verdict on the encounter.
 
 ## Playtest feedback still needed
 
