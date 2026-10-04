@@ -698,7 +698,7 @@ func _draw() -> void:
 			draw_polyline(diamond, RED, 2)
 			if pending.get("target", -1) == i or lure_target == i:
 				draw_arc(center, 30, 0, TAU, 28, GOLD, 3)
-		draw_sprite(unit.art, ground, 63 if unit.ally else 78, not unit.ally)
+		draw_sprite(unit.art, ground, 63 if unit.ally else 78, unit.ally)
 		draw_rect(Rect2(ground + Vector2(-24, 1), Vector2(48, 5)), Color("402e2c"))
 		draw_rect(Rect2(ground + Vector2(-24, 1), Vector2(48.0 * unit.hp / unit.max_hp, 5)), GREEN if unit.ally else RED)
 		draw_string(font, ground + Vector2(-27, 20), "%s %d" % [unit.name, unit.hp], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, INK)
