@@ -1,0 +1,188 @@
+{
+  "format_version": 1,
+  "generator": "built-in image_gen",
+  "frames_per_unit": 1,
+  "texture_filter": "nearest",
+  "bounds_alpha_threshold": 128,
+  "assets": {
+    "fighter-idle": {
+      "path": "characters/fighter-idle.png",
+      "size_px": [
+        1536,
+        1024
+      ],
+      "mode": "RGBA",
+      "transparent": true,
+      "content_rect_px": [
+        442,
+        141,
+        655,
+        786
+      ],
+      "transparent_pixels": 1242175,
+      "kind": "unit",
+      "facing": "screen-right",
+      "pivot_px": [
+        764,
+        927
+      ],
+      "suggested_display_height_px": 80,
+      "suggested_uniform_scale": 0.101781
+    },
+    "krix-idle": {
+      "path": "characters/krix-idle.png",
+      "size_px": [
+        1399,
+        1124
+      ],
+      "mode": "RGBA",
+      "transparent": true,
+      "content_rect_px": [
+        244,
+        128,
+        909,
+        913
+      ],
+      "transparent_pixels": 1137687,
+      "kind": "unit",
+      "facing": "screen-right",
+      "pivot_px": [
+        730,
+        1041
+      ],
+      "suggested_display_height_px": 64,
+      "suggested_uniform_scale": 0.070099
+    },
+    "mumpf-idle": {
+      "path": "characters/mumpf-idle.png",
+      "size_px": [
+        1536,
+        1024
+      ],
+      "mode": "RGBA",
+      "transparent": true,
+      "content_rect_px": [
+        405,
+        140,
+        742,
+        832
+      ],
+      "transparent_pixels": 1236813,
+      "kind": "unit",
+      "facing": "screen-right",
+      "pivot_px": [
+        798,
+        972
+      ],
+      "suggested_display_height_px": 64,
+      "suggested_uniform_scale": 0.076923
+    },
+    "piks-idle": {
+      "path": "characters/piks-idle.png",
+      "size_px": [
+        1536,
+        1024
+      ],
+      "mode": "RGBA",
+      "transparent": true,
+      "content_rect_px": [
+        371,
+        110,
+        759,
+        864
+      ],
+      "transparent_pixels": 1177851,
+      "kind": "unit",
+      "facing": "screen-right",
+      "pivot_px": [
+        780,
+        974
+      ],
+      "suggested_display_height_px": 64,
+      "suggested_uniform_scale": 0.074074
+    },
+    "ranger-idle": {
+      "path": "characters/ranger-idle.png",
+      "size_px": [
+        1536,
+        1024
+      ],
+      "mode": "RGBA",
+      "transparent": true,
+      "content_rect_px": [
+        472,
+        161,
+        652,
+        773
+      ],
+      "transparent_pixels": 1286577,
+      "kind": "unit",
+      "facing": "screen-right",
+      "pivot_px": [
+        790,
+        934
+      ],
+      "suggested_display_height_px": 80,
+      "suggested_uniform_scale": 0.103493
+    },
+    "cave-background": {
+      "path": "terrain/cave-background.png",
+      "size_px": [
+        1672,
+        941
+      ],
+      "mode": "RGB",
+      "kind": "background",
+      "transparent": false,
+      "tileable": false
+    },
+    "pit-armed": {
+      "path": "traps/pit-armed.png",
+      "size_px": [
+        1536,
+        1024
+      ],
+      "mode": "RGBA",
+      "transparent": true,
+      "content_rect_px": [
+        319,
+        264,
+        924,
+        546
+      ],
+      "transparent_pixels": 1142466,
+      "kind": "trap",
+      "state": "armed",
+      "pivot_px": [
+        781,
+        537
+      ],
+      "suggested_display_width_px": 80,
+      "suggested_uniform_scale": 0.08658
+    },
+    "pit-triggered": {
+      "path": "traps/pit-triggered.png",
+      "size_px": [
+        1536,
+        1024
+      ],
+      "mode": "RGBA",
+      "transparent": true,
+      "content_rect_px": [
+        319,
+        264,
+        924,
+        545
+      ],
+      "transparent_pixels": 1143894,
+      "kind": "trap",
+      "state": "triggered",
+      "pivot_px": [
+        781,
+        537
+      ],
+      "suggested_display_width_px": 80,
+      "suggested_uniform_scale": 0.08658
+    }
+  }
+}

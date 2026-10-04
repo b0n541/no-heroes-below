@@ -1,0 +1,37 @@
+# No Heroes Below artwork
+
+Eight PNG assets generated with the built-in image_gen tool on 2026-10-04, using the English game pitch and its three linked images as references. Raised 2D perspective with a slight isometric feel, charcoal outlines, painterly pixel clusters, warm amber highlights and cool cave shadows.
+
+| File | Contents | Canvas |
+| --- | --- | --- |
+| `characters/piks-idle.png` | Red kobold scout, green hood and scouting whistle | 1536 × 1024 |
+| `characters/mumpf-idle.png` | Ochre trapper, goggles, blue scarf, rope and mallet | 1536 × 1024 |
+| `characters/krix-idle.png` | Red kobold slinger, sling and stone pouch | 1399 × 1124 |
+| `characters/fighter-idle.png` | Human fighter, steel armor, sword and shield | 1536 × 1024 |
+| `characters/ranger-idle.png` | Human ranger, green hood, bow and quiver | 1536 × 1024 |
+| `terrain/cave-background.png` | Empty cave battlefield with rock walls, open stone floor and torches | 1672 × 941 |
+| `traps/pit-armed.png` | Closed disguised wooden cover and rope latch | 1536 × 1024 |
+| `traps/pit-triggered.png` | Collapsed cover, open pit and wooden stakes | 1536 × 1024 |
+
+All characters and both traps have genuine alpha transparency. These are individual idle/state images, with no animation. The cave is an opaque background without characters or UI; it is not a seamless tile set.
+
+## Godot placement
+
+The original generated PNGs are preserved without resizing or cropping. Use nearest texture filtering to retain the pixel texture. `asset-manifest.json` records canvas sizes, visible content bounds, source-pixel pivots and suggested scales.
+
+For a Sprite2D using the whole PNG, keep `centered = true`, set `offset = Vector2(width / 2.0, height / 2.0) - Vector2(pivot_x, pivot_y)`, and apply `suggested_uniform_scale` to both axes. Then position the unit node at its ground contact. The unit pivots approximate the midpoint of the feet. Suggested visible heights are 64 px for kobolds and 80 px for humans when the background is used at native size; adjust them to the implementation's grid.
+
+Both pit images use the same 1536 × 1024 canvas, shared pivot and shared scale, so a texture swap retains placement. Suggested visible trap width is 80 px. Content bounds use alpha >= 128 and are supplied as metadata, not baked crops. The trap bounds differ by one pixel in height; use the shared pivot and scale for both states.
+
+The cave floor suggests stone cells visually; gameplay walkability and the tactical grid belong to the implementation.
+
+## References and generation record
+
+- [English pitch](../docs/game-pitch/no-heroes-below-game-pitch-en.md)
+- [Gameplay reference](../docs/game-pitch/16-no-heroes-below-key-gameplay.png)
+- [Kobold roster reference](../docs/game-pitch/14-kobold-roster.png)
+- [Trap and biome reference](../docs/game-pitch/15-fallen-und-biome.png)
+- [Exact final prompt set](provenance/generation-prompts.json)
+- [Generated source paths](provenance/source-paths.json)
+
+Validation: all eight files decode as PNGs; all seven sprite/state files have transparent pixels and visible foreground pixels. The pit canvases match. Each generated image was visually inspected for its subject, equipment, style and framing.
