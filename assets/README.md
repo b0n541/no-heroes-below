@@ -1,6 +1,6 @@
 # No Heroes Below artwork
 
-Eight PNG assets generated with the built-in image_gen tool on 2026-10-04, using the English game pitch and its three linked images as references. Raised 2D perspective with a slight isometric feel, charcoal outlines, painterly pixel clusters, warm amber highlights and cool cave shadows.
+Ten PNG assets generated with the built-in image_gen tool on 2026-10-04, using the English game pitch and its three linked images as references. Raised 2D perspective with a slight isometric feel, charcoal outlines, painterly pixel clusters, warm amber highlights and cool cave shadows.
 
 | File | Contents | Canvas |
 | --- | --- | --- |
@@ -10,10 +10,16 @@ Eight PNG assets generated with the built-in image_gen tool on 2026-10-04, using
 | `characters/fighter-idle.png` | Human fighter, steel armor, sword and shield | 1536 × 1024 |
 | `characters/ranger-idle.png` | Human ranger, green hood, bow and quiver | 1536 × 1024 |
 | `terrain/cave-background.png` | Empty cave battlefield with rock walls, open stone floor and torches | 1672 × 941 |
+| `terrain/rocks1.png` | Standalone slate boulder cluster obstacle | 1536 × 1024 |
+| `terrain/rocks2.png` | Alternative slate boulder cluster obstacle | 1536 × 1024 |
+| `terrain/rocks3.png` | Layered slate outcrop obstacle | 1254 × 1254 |
+| `terrain/rocks4.png` | Compact cluster of three tightly packed boulders | 1536 × 1024 |
+| `terrain/pantry.png` | Placeable pile of provisions: sack, basket, bread and roots | 1402 × 1122 |
+| `terrain/pantry-room.png` | Kobold pantry chamber with food storage around an open floor | 1536 × 1024 |
 | `traps/pit-armed.png` | Closed disguised wooden cover and rope latch | 1536 × 1024 |
 | `traps/pit-triggered.png` | Collapsed cover, open pit and wooden stakes | 1536 × 1024 |
 
-All characters and both traps have genuine alpha transparency. These are individual idle/state images, with no animation. The cave is an opaque background without characters or UI; it is not a seamless tile set.
+The rock, food pile, characters and traps have genuine alpha transparency. The cave and pantry-room are opaque backgrounds without characters or UI; neither is a seamless tile set. Character and trap images are individual idle/state images, with no animation.
 
 ## Godot placement
 
@@ -23,7 +29,7 @@ For a Sprite2D using the whole PNG, keep `centered = true`, set `offset = Vector
 
 Both pit images use the same 1536 × 1024 canvas, shared pivot and shared scale, so a texture swap retains placement. Suggested visible trap width is 80 px. Content bounds use alpha >= 128 and are supplied as metadata, not baked crops. The trap bounds differ by one pixel in height; use the shared pivot and scale for both states.
 
-The cave floor suggests stone cells visually; gameplay walkability and the tactical grid belong to the implementation.
+The rock obstacle and pantry food pile use pivots near their ground contacts; scale them using the manifest. The cave and pantry-room floors suggest stone cells visually; gameplay walkability and the tactical grid belong to the implementation.
 
 ## References and generation record
 

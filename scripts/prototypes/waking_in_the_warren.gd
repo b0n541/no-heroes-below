@@ -14,13 +14,16 @@ const GOLD = Color("efbd66")
 const GREEN = Color("85d7b0")
 const RED = Color("f39b8e")
 const BLUE = Color("84c9e9")
+const HIT_FLASH_DURATION = 0.12
 
 var rng = RandomNumberGenerator.new()
 var units: Array = []
+var rock_art: Dictionary = {}
 var phase = "preparation"
 var round_number = 1
 var pantry_hp = 3
 var selected = 0
+var active_enemy = -1
 var mode = "move"
 var pending: Dictionary = {}
 var lure_target = -1
@@ -28,9 +31,11 @@ var trap_cell = Vector2i(4, 3)
 var trap_state = "unplaced"
 var rig_available = true
 var busy = false
+var hit_flash_target = -1
 var hovered = Vector2i(-1, -1)
 var log_lines: Array[String] = []
 var textures: Dictionary = {}
+var silhouette_textures: Dictionary = {}
 var manifest: Dictionary = {}
 var status_label: Label
 var crew_label: Label
@@ -39,7 +44,6 @@ var help_label: Label
 var preview_label: Label
 var log_label: RichTextLabel
 var die_label: Label
-var confirm_button: Button
 var next_button: Button
 var action_buttons: Dictionary = {}
 var crew_buttons: Array[Button] = []
@@ -113,7 +117,7 @@ func build_ui() -> void:
 	for i in range(actions.size()):
 		var action: String = actions[i][0]
 		action_buttons[action] = make_button(actions[i][1], Vector2(30 + i * 158, 719), Vector2(149, 42), func(): choose_mode(action))
-	confirm_button = make_button("Confirm [Enter]", Vector2(668, 719), Vector2(174, 42), confirm_action)
+	make_label(Vector2(668, 719), Vector2(174, 44), 15, BLUE).text = "Click again to commit\nor press Enter"
 	next_button = make_button("Start raid", Vector2(30, 775), Vector2(250, 42), advance_turn)
 	make_button("Restart [R]", Vector2(295, 775), Vector2(160, 42), restart)
 	make_label(Vector2(478, 779), Vector2(365, 35), 14).text = "Select: 1–3 · Cancel: Esc · End turn: Space"
@@ -124,6 +128,9 @@ func new_unit(title: String, key: String, cell: Vector2i, hp: int, ac: int, bonu
 func restart() -> void:
 	if busy:
 		return
+	rock_art.clear()
+	for cell in ROCKS:
+		rock_art[cell] = "rocks%d" % rng.randi_range(1, 4)
 	units = [
 		new_unit("Piks", "piks-idle", Vector2i(5, 3), 8, 13, 4, 1, 4, 3, true),
 		new_unit("Mumpf", "mumpf-idle", Vector2i(6, 4), 10, 12, 3, 1, 3, 1, true),
@@ -132,8 +139,10 @@ func restart() -> void:
 		new_unit("Ranger", "ranger-idle", Vector2i(0, 4), 12, 13, 3, 4, 2, 3, false)]
 	phase = "preparation"
 	round_number = 1
+	hit_flash_target = -1
 	pantry_hp = 3
 	selected = 0
+	active_enemy = -1
 	mode = "move"
 	pending.clear()
 	lure_target = -1
@@ -300,6 +309,7 @@ func click_cell(cell: Vector2i) -> void:
 	if occupant >= 0 and units[occupant].ally:
 		select_unit(occupant)
 		return
+	var previewed_action = pending.duplicate(true)
 	pending.clear()
 	var actor: Dictionary = units[selected]
 	if phase == "preparation":
@@ -324,6 +334,9 @@ func click_cell(cell: Vector2i) -> void:
 				lure_target = occupant
 			elif lure_target >= 3 and valid_whistle_tile(cell):
 				pending = {"kind": "whistle", "target": lure_target, "cell": cell}
+	if not pending.is_empty() and pending == previewed_action:
+		confirm_action()
+		return
 	refresh()
 	if pending.is_empty() and lure_target < 0:
 		if mode == "ability" and selected == 1:
@@ -397,6 +410,7 @@ func resolve_attack(attacker_index: int, target_index: int, stone: bool = false)
 		rolls.append(str(die))
 	target.hp = maxi(0, target.hp - damage)
 	add_log("%s → %s: d20 %d +%d = %d vs AC %d. %s %s+%d = %d damage; %d/%d HP." % [attacker.name, target.name, natural, attacker.bonus, natural + attacker.bonus, target.ac, "CRITICAL!" if natural == 20 else "HIT.", "+".join(rolls), 1 if attacker.ally else 2, damage, target.hp, target.max_hp])
+	await flash_hit(target_index)
 	if target.hp == 0:
 		add_log("%s is out of the fight." % target.name)
 	elif stone:
@@ -408,6 +422,13 @@ func resolve_attack(attacker_index: int, target_index: int, stone: bool = false)
 			await trigger_pit(target_index, entry_cell)
 		else:
 			add_log("Stone Shot's push is blocked; the hit still deals damage.")
+	queue_redraw()
+
+func flash_hit(index: int) -> void:
+	hit_flash_target = index
+	refresh()
+	await get_tree().create_timer(HIT_FLASH_DURATION).timeout
+	hit_flash_target = -1
 	queue_redraw()
 
 func trigger_pit(index: int, entry_cell: Vector2i) -> bool:
@@ -448,7 +469,11 @@ func advance_turn() -> void:
 	add_log("— Adventurers · round %d —" % round_number)
 	for index in [3, 4]:
 		if alive(index):
+			active_enemy = index
+			refresh()
+			await get_tree().create_timer(0.12).timeout
 			await enemy_turn(index)
+			active_enemy = -1
 			check_outcome()
 			refresh()
 			if phase in ["won", "lost"]:
@@ -565,7 +590,7 @@ func refresh() -> void:
 	status_label.text = "%s\nRound %d · Pantry %d/3" % [phase_title[phase], round_number, pantry_hp]
 	crew_label.text = "%s · HP %d/%d · AC %d\nMove %d/%d · Action %s\nAttack +%d · %s" % [actor.name, actor.hp, actor.max_hp, actor.ac, actor.move, actor.speed, "ready" if actor.action else "spent", actor.bonus, action_reach(selected, "attack")]
 	var abilities = ["Whistle: select a visible enemy within 6, then a visible lure tile within 6. It follows before attacking.", "Quick Rig: place or reset the one pit on an empty tile within 2 squares. Failed pit saves return invaders to their entry tile. One use during the raid.", "Stone Shot: ranged attack within 4; on hit push one tile away. Push an invader onto the pit!"]
-	help_label.text = "PREPARATION\nPlace pit, click a free tile, Confirm. Select a kobold and position it on the right. Then Start raid." if phase == "preparation" else abilities[selected] + "\nOne action per round. A normal attack also uses it."
+	help_label.text = "PREPARATION\nPlace pit: click a free tile twice. Select a kobold and click its destination twice to position it on the right. Then Start raid." if phase == "preparation" else abilities[selected] + "\nOne action per round. A normal attack also uses it."
 	intent_label.text = "ENEMY INTENT\n" + enemy_intent(3) + "\n" + enemy_intent(4)
 	for i in range(3):
 		crew_buttons[i].disabled = busy or not alive(i)
@@ -574,7 +599,6 @@ func refresh() -> void:
 	for action in action_buttons:
 		action_buttons[action].disabled = busy or ended or (phase == "preparation" and action in ["attack", "ability"]) or (phase != "preparation" and action == "trap") or (phase != "preparation" and action in ["attack", "ability"] and not actor.action)
 		action_buttons[action].modulate = GOLD if mode == action else Color.WHITE
-	confirm_button.disabled = busy or ended or pending.is_empty()
 	next_button.disabled = busy or ended
 	next_button.text = "Start raid · pit " + ("ready" if trap_state == "armed" else "not placed") if phase == "preparation" else "End crew turn [Space]"
 	if ended:
@@ -582,17 +606,17 @@ func refresh() -> void:
 	elif not pending.is_empty():
 		match pending.kind:
 			"attack", "stone": preview_label.text = attack_preview(actor, units[pending.target], pending.kind == "stone")
-			"move": preview_label.text = "%s → %s: %d movement, %d remains. Blue route avoids stone and occupied cells. Confirm to move." % [actor.name, tile_name(pending.cell), pending.route.size(), actor.move - pending.route.size()]
-			"deploy": preview_label.text = "Position %s at %s before the raid. Confirm to place." % [actor.name, tile_name(pending.cell)]
+			"move": preview_label.text = "%s → %s: %d movement, %d remains. Click this tile again to move." % [actor.name, tile_name(pending.cell), pending.route.size(), actor.move - pending.route.size()]
+			"deploy": preview_label.text = "Position %s at %s before the raid. Click this tile again to place." % [actor.name, tile_name(pending.cell)]
 			"rig": preview_label.text = "Pit at %s · DEX save DC 13. Fail: 2d6 damage, return to entry tile, stop; skip next turn recovering. Pass: cross safely.\nOne invader triggers it. Kobolds cross safely; Mumpf can reset the empty pit once during the raid." % tile_name(pending.cell)
-			"whistle": preview_label.text = "Lure %s toward %s on its next turn. Whistle uses Piks's action; no roll. Confirm to whistle." % [units[pending.target].name, tile_name(pending.cell)]
+			"whistle": preview_label.text = "Lure %s toward %s on its next turn. Whistle uses Piks's action; no roll. Click this tile again to whistle." % [units[pending.target].name, tile_name(pending.cell)]
 	elif lure_target >= 0:
 		preview_label.text = "%s selected for Whistle · WHISTLE · 6. Now click a highlighted lure tile within 6 of Piks; choose the pit or a tile beyond it." % units[lure_target].name
 	else:
-		preview_label.text = "Select an action, then click a highlighted tile or an enemy to preview. Confirm commits the action.\n" + ("Place your pit before starting. You may reposition freely on the right." if phase == "preparation" else "%s · %s\nRed = legal target · Gold = selected target. Enemy intent lists attackers and targets." % [mode.capitalize(), action_reach(selected)])
+		preview_label.text = "Select an action. Click a highlighted tile or enemy to preview; click it again to commit. Esc cancels.\n" + ("Place your pit before starting. You may reposition freely on the right." if phase == "preparation" else "%s · %s\nGreen outline = active kobold · Red outline = selected enemy." % [mode.capitalize(), action_reach(selected)])
 	queue_redraw()
 
-func draw_sprite(key: String, ground: Vector2, height: float, flip: bool = false) -> void:
+func draw_sprite(key: String, ground: Vector2, height: float, flip: bool = false, outline: bool = false, outline_color: Color = RED, flash: bool = false) -> void:
 	var asset: Dictionary = manifest[key]
 	var bounds: Array = asset.content_rect_px
 	var source = Rect2(bounds[0], bounds[1], bounds[2], bounds[3])
@@ -604,7 +628,26 @@ func draw_sprite(key: String, ground: Vector2, height: float, flip: bool = false
 	if flip:
 		destination.position.x = ground.x - (dimensions.x - offset.x)
 		destination.size.x = -dimensions.x
+	if outline or flash:
+		if not silhouette_textures.has(key):
+			silhouette_textures[key] = make_silhouette_texture(key, bounds)
+	if outline:
+		var silhouette_source = Rect2(0, 0, bounds[2], bounds[3])
+		for outline_offset in [Vector2(-1, -1), Vector2(0, -1), Vector2(1, -1), Vector2(-1, 0), Vector2(1, 0), Vector2(-1, 1), Vector2(0, 1), Vector2(1, 1)]:
+			draw_texture_rect_region(silhouette_textures[key], Rect2(destination.position + outline_offset, destination.size), silhouette_source, outline_color)
 	draw_texture_rect_region(textures[key], destination, source)
+	if flash:
+		draw_texture_rect_region(silhouette_textures[key], destination, Rect2(0, 0, bounds[2], bounds[3]), Color(1.0, 0.08, 0.08, 0.8))
+
+func make_silhouette_texture(key: String, bounds: Array) -> Texture2D:
+	var source_image: Image = textures[key].get_image()
+	var silhouette = Image.create(bounds[2], bounds[3], false, Image.FORMAT_RGBA8)
+	for y in range(bounds[3]):
+		for x in range(bounds[2]):
+			var alpha = source_image.get_pixel(bounds[0] + x, bounds[1] + y).a
+			if alpha > 0.0:
+				silhouette.set_pixel(x, y, Color(1.0, 1.0, 1.0, alpha))
+	return ImageTexture.create_from_image(silhouette)
 
 func _draw() -> void:
 	draw_rect(Rect2(0, 0, 1280, 850), Color("111c22"))
@@ -620,7 +663,7 @@ func _draw() -> void:
 			var rectangle = Rect2(ORIGIN + Vector2(cell) * CELL, CELL)
 			var tint = Color(0.12, 0.17, 0.18, 0.18)
 			if cell in ROCKS:
-				tint = Color(0.12, 0.17, 0.19, 0.9)
+				tint = Color(0.12, 0.17, 0.19, 0.35)
 			elif not busy and phase not in ["won", "lost"]:
 				if phase == "preparation" and mode == "trap" and x >= 2 and x <= 7 and unit_at(cell) < 0:
 					tint = Color(0.94, 0.69, 0.28, 0.26)
@@ -644,7 +687,9 @@ func _draw() -> void:
 			draw_rect(rectangle.grow(-1), tint)
 			draw_rect(rectangle.grow(-1), Color(0.83, 0.78, 0.64, 0.25), false, 1)
 			if cell in ROCKS:
-				draw_string(font, rectangle.position + Vector2(10, 29), "STONE", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color("8c9695"))
+				var rock_bounds: Array = manifest[rock_art[cell]].content_rect_px
+				var rock_height = minf(44, 64 * float(rock_bounds[3]) / float(rock_bounds[2]))
+				draw_sprite(rock_art[cell], cell_center(cell) + Vector2(0, 20), rock_height)
 			if cell == hovered:
 				draw_rect(rectangle.grow(-2), BLUE, false, 2)
 	for x in range(COLS):
@@ -652,36 +697,23 @@ func _draw() -> void:
 	for y in range(ROWS):
 		draw_string(font, ORIGIN + Vector2(-19, y * CELL.y + 29), str(y + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, INK)
 	var pantry_center = cell_center(PANTRY)
-	draw_rect(Rect2(pantry_center - Vector2(25, 18), Vector2(50, 35)), Color("735333"))
-	draw_rect(Rect2(pantry_center - Vector2(25, 18), Vector2(50, 35)), GOLD, false, 2)
-	draw_string(font, pantry_center + Vector2(-20, 6), "%d / 3" % pantry_hp, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, GOLD)
-	draw_string(font, pantry_center + Vector2(-28, 38), "PANTRY", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, GOLD)
+	draw_sprite("pantry", pantry_center + Vector2(0, 16), 48)
+	draw_string(font, pantry_center + Vector2(-32, 34), "PANTRY %d/3" % pantry_hp, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, GOLD)
 	if trap_state != "unplaced":
 		draw_sprite("pit-armed" if trap_state == "armed" else "pit-triggered", cell_center(trap_cell), 38)
 		draw_string(font, cell_center(trap_cell) + Vector2(-21, 26), "DC 13" if trap_state == "armed" else "SPENT", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, GOLD)
-	if pending.has("route"):
-		var last = cell_center(actor.cell)
-		for cell in pending.route:
-			draw_line(last, cell_center(cell), BLUE, 3)
-			last = cell_center(cell)
 	if pending.has("cell"):
 		draw_rect(Rect2(ORIGIN + Vector2(pending.cell) * CELL, CELL).grow(-2), GOLD, false, 3)
 	var order: Array = range(units.size())
 	order.sort_custom(func(a, b): return units[a].cell.y < units[b].cell.y)
 	for i in order:
-		if not alive(i):
+		if not alive(i) and i != hit_flash_target:
 			continue
 		var unit: Dictionary = units[i]
 		var center = cell_center(unit.cell)
 		var ground = center + Vector2(0, 16)
-		if unit.ally:
-			draw_arc(center + Vector2(0, 11), 22, 0, TAU, 28, GOLD if selected == i else GREEN, 3)
-		else:
-			var diamond = PackedVector2Array([center + Vector2(0, -17), center + Vector2(28, 9), center + Vector2(0, 25), center + Vector2(-28, 9), center + Vector2(0, -17)])
-			draw_polyline(diamond, RED, 2)
-			if pending.get("target", -1) == i or lure_target == i:
-				draw_arc(center, 30, 0, TAU, 28, GOLD, 3)
-		draw_sprite(unit.art, ground, 63 if unit.ally else 78, unit.ally)
+		var outlined = (i == selected and phase in ["preparation", "kobolds"]) or i == active_enemy or i == pending.get("target", -1) or i == lure_target
+		draw_sprite(unit.art, ground, 63 if unit.ally else 78, unit.ally, outlined, GREEN if unit.ally else RED, i == hit_flash_target)
 		draw_rect(Rect2(ground + Vector2(-24, 1), Vector2(48, 5)), Color("402e2c"))
 		draw_rect(Rect2(ground + Vector2(-24, 1), Vector2(48.0 * unit.hp / unit.max_hp, 5)), GREEN if unit.ally else RED)
 		draw_string(font, ground + Vector2(-27, 20), "%s %d" % [unit.name, unit.hp], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, INK)

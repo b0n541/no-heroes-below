@@ -183,6 +183,132 @@
       ],
       "suggested_display_width_px": 80,
       "suggested_uniform_scale": 0.08658
+    },
+    "rocks1": {
+      "path": "terrain/rocks1.png",
+      "size_px": [
+        1536,
+        1024
+      ],
+      "mode": "RGBA",
+      "kind": "terrain-prop",
+      "transparent": true,
+      "content_rect_px": [
+        220,
+        104,
+        1153,
+        814
+      ],
+      "transparent_pixels": 1007028,
+      "pivot_px": [
+        768,
+        910
+      ],
+      "suggested_display_width_px": 112,
+      "suggested_uniform_scale": 0.097138
+    },
+    "pantry": {
+      "path": "terrain/pantry.png",
+      "size_px": [
+        1402,
+        1122
+      ],
+      "mode": "RGBA",
+      "kind": "terrain-prop",
+      "transparent": true,
+      "content_rect_px": [
+        312,
+        174,
+        802,
+        779
+      ],
+      "transparent_pixels": 1186384,
+      "pivot_px": [
+        701,
+        945
+      ],
+      "suggested_display_width_px": 96,
+      "suggested_uniform_scale": 0.119701
+    },
+    "rocks2": {
+      "path": "terrain/rocks2.png",
+      "size_px": [
+        1536,
+        1024
+      ],
+      "mode": "RGBA",
+      "kind": "terrain-prop",
+      "transparent": true,
+      "content_rect_px": [
+        239,
+        139,
+        1094,
+        792
+      ],
+      "transparent_pixels": 1061402,
+      "pivot_px": [
+        768,
+        923
+      ],
+      "suggested_display_width_px": 112,
+      "suggested_uniform_scale": 0.102377
+    },
+    "pantry-room": {
+      "path": "terrain/pantry-room.png",
+      "size_px": [
+        1536,
+        1024
+      ],
+      "mode": "RGB",
+      "kind": "background",
+      "transparent": false,
+      "tileable": false
+    },
+    "rocks3": {
+      "path": "terrain/rocks3.png",
+      "size_px": [
+        1254,
+        1254
+      ],
+      "mode": "RGBA",
+      "kind": "terrain-prop",
+      "transparent": true,
+      "content_rect_px": [
+        119,
+        125,
+        1022,
+        1006
+      ],
+      "transparent_pixels": 970239,
+      "pivot_px": [
+        627,
+        1123
+      ],
+      "suggested_display_width_px": 112,
+      "suggested_uniform_scale": 0.109589
+    },
+    "rocks4": {
+      "path": "terrain/rocks4.png",
+      "size_px": [
+        1536,
+        1024
+      ],
+      "mode": "RGBA",
+      "kind": "terrain-prop",
+      "transparent": true,
+      "content_rect_px": [
+        201,
+        190,
+        1135,
+        649
+      ],
+      "transparent_pixels": 1085867,
+      "pivot_px": [
+        768,
+        831
+      ],
+      "suggested_display_width_px": 112,
+      "suggested_uniform_scale": 0.098678
     }
   }
 }
